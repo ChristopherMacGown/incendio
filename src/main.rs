@@ -123,7 +123,7 @@ fn main() {
     for x in 0..1000 {
         heat_map = heat_map.step();
 
-        for (y, cell) in (&(heat_map.heat_map)).into_iter().enumerate() {
+        for (y, cell) in (&(heat_map.heat_map)).iter().enumerate() {
             image.set_pixel(x, y as u32, COLOR_PALETTE[(cell / 32) as usize]);
         }
 
