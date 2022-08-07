@@ -5,6 +5,11 @@ use rand::prelude::*;
 use std::default::Default;
 use std::fmt::Debug;
 
+
+mod simulation;
+mod rng;
+
+
 const COOLING: u8 = 55;
 
 type Heat = u8;
