@@ -44,16 +44,16 @@ impl Squares32 {
 
         self.0 .0 += 1;
 
-        let z0 = counter * key; // SquaresRNG - y
-        let z1 = z0 + key; // SquaresRNG - z
-        let mut z2 = z0;
+        let mut z0 =counter * key;
+        let z1 = z0;
+        let z2 = z1 + key;
 
-        round!(z2, z0, :rotate);
-        round!(z2, z1, :rotate);
-        round!(z2, z0, :rotate);     
-        round!(z2, z1, :shift);
+        round!(z0, z1, :rotate); // round 1
+        round!(z0, z2, :rotate); // round 2
+        round!(z0, z1, :rotate); // round 3
+        round!(z0, z2, :shift);  // round 4
 
-        z2 as u32
+        z0 as u32
     }
 }
 
@@ -80,19 +80,20 @@ impl Squares64 {
 
         self.0.0 += 1;
 
-        let z0 = counter * key;
-        let z1 = z0 + key;
+        let mut z0 = counter * key;
+        let z1 = z0;
+        let z2 = z1 + key;
+        let z3; // Placeholder for the pre-rotated value of z0
+                       // in Round 4 that is XORed against the post-rotated
+                       // value of z0 following round 5.
+    
+        round!(z0, z1, :rotate); //   round 1
+        round!(z0, z2, :rotate); //   round 2
+        round!(z0, z1, :rotate); //   round 3
+        round!(z0, z2, :into, z3); // round 4
+        round!(z0, z1); //            round 5
 
-        let mut z2 = z0;
-        let mut z3;
-
-        round!(z2, z0, :rotate); //   round 1
-        round!(z2, z1, :rotate); //   round 2
-        round!(z2, z0, :rotate); //   round 3
-        round!(z2, z1, :into, z3); // round 4
-        round!(z2, z0); //            round 5
-
-        z3 ^ (z2 >> 32)
+        z3 ^ (z0 >> 32)
     }
 }
 
@@ -106,8 +107,6 @@ impl Rng for Squares64 {
 
 #[cfg(test)]
 mod test {
-    use crate::rng::well512a;
-
     use super::{Rng, Squares32, Squares64};
     use std::time::{Duration, Instant};
 
@@ -131,29 +130,32 @@ mod test {
     }
 
     #[test]
-    fn generate_a_million_random_values() {
-        fn time_it<R: Rng<Item = usize>>(mut rng: R, count: usize) -> (Duration, usize) {
+    fn squares32_generate_a_million_random_values() {
+        fn time_it<R: Rng<Item = u32>>(mut rng: R, count: usize) -> (Duration, usize) {
             let now = Instant::now();
-            let average = (1..=count).map(|n| rng.next() / n).sum();
-
-            (now.elapsed(), average)
-        }
-        fn time_it32<R: Rng<Item = u32>>(mut rng: R, count: usize) -> (Duration, usize) {
-            let now = Instant::now();
-            let average = (1..=count).map(|n| rng.next() as usize / n).sum();
+            let average = (1..=count).map(|_| (rng.next() % 3) as usize).sum::<usize>();
          
-            (now.elapsed(), average)
+            (now.elapsed(), average / count)
         }
 
         let squares32 = Squares32::new_from_seed(0x5eed);
+        let (time, average) = time_it(squares32, 1_000_000);
+        assert!(time.as_millis() <= 150);
+        assert_eq!(average, 0);
+    }
+
+    #[test]
+    fn squares64_generate_a_million_random_values() {
+        fn time_it<R: Rng<Item=usize>>(mut rng: R, count: usize) -> (Duration, usize) {
+            let now = Instant::now();
+            let average = (1..=count).map(|_| (rng.next() % 3) as usize).sum::<usize>();
+
+            (now.elapsed(), average / count)
+        }
+
         let squares64 = Squares64::new_from_seed(0x5eed);
-
-        const BIG_NUM: usize = 5_000_000_000;
-        const MILLION: usize = 1_000_000;
-
-        println!("Squares64:\t{:.02?}", time_it(squares64  , MILLION));
-        println!("Squares32:\t{:.02?}", time_it32(squares32, MILLION));
-
-        assert!(false);
+        let (time, average) = time_it(squares64, 1_000_000);
+        assert!(time.as_millis() <= 150);
+        assert_eq!(average, 1);
     }
 }
